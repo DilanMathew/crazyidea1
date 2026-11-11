@@ -1,0 +1,333 @@
+<title>Circular Money Machine</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,500..900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a control-room schematic. Live money-flow network on the left, levers and gauges on the right, timeline + Monte Carlo below. */
+:root{
+  --bg:#EDF0F4; --panel:#FFFFFF; --ink:#14213D; --muted:#5B6B82; --line:#CBD3DD;
+  --cash:#B97E00; --loop:#D1495B; --real:#1F8A7E; --warn:#C26A00;
+  --display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1420; --panel:#151D2B; --ink:#E6EBF2; --muted:#8D9AB0; --line:#27324A;
+  --cash:#F2B632; --loop:#FF6B7D; --real:#4FD1C1; --warn:#FF9F43; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1420; --panel:#151D2B; --ink:#E6EBF2; --muted:#8D9AB0; --line:#27324A;
+  --cash:#F2B632; --loop:#FF6B7D; --real:#4FD1C1; --warn:#FF9F43; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1240px;margin:0 auto;padding-block:28px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:grid;gap:20px}
+header{display:grid;gap:6px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--display);font-stretch:78%;font-weight:850;font-size:clamp(34px,6vw,64px);line-height:.95;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1 em{font-style:normal;color:var(--loop)}
+.lede{max-width:68ch;color:var(--muted);margin:4px 0 0}
+.grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:20px}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.panel h2{font-family:var(--display);font-stretch:90%;font-weight:700;font-size:15px;letter-spacing:.06em;text-transform:uppercase;margin:0 0 10px;display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.panel h2 small{font-family:var(--mono);font-weight:400;letter-spacing:0;text-transform:none;color:var(--muted);font-size:12px}
+canvas{display:block;width:100%}
+.netbox{position:relative;flex:1;min-height:360px}
+#net{position:absolute;inset:0;width:100%;height:100%}
+.flowpanel{display:flex;flex-direction:column}
+@media (max-width:900px){.netbox{flex:none;min-height:0;aspect-ratio:1/1;max-width:100%}}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:8px}
+.legend i{display:inline-block;width:18px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.side{display:grid;gap:20px;align-content:start;min-width:0}
+.status{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.q{font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.pill{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:4px 10px;border-radius:99px;border:1.5px solid currentColor;font-weight:500}
+.pill.ok{color:var(--real)} .pill.hot{color:var(--warn)} .pill.pop{color:var(--panel);background:var(--loop);border-color:var(--loop)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-top:12px}
+.kpi span{display:block;font-size:12px;color:var(--muted)}
+.kpi b{font-family:var(--mono);font-weight:500;font-size:19px;font-variant-numeric:tabular-nums}
+.big{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line);display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.big b{font-family:var(--display);font-stretch:80%;font-weight:850;font-size:52px;line-height:1;color:var(--loop);font-variant-numeric:tabular-nums}
+.big span{color:var(--muted);font-size:13px;max-width:24ch}
+.ctl{display:grid;gap:4px;margin-bottom:12px}
+.ctl label{display:flex;justify-content:space-between;font-size:13.5px;gap:8px}
+.ctl label output{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--muted)}
+.ctl small{color:var(--muted);font-size:12px;line-height:1.35}
+input[type=range]{width:100%;accent-color:var(--loop)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+button{font:500 13px var(--body);color:var(--ink);background:transparent;border:1.5px solid var(--line);border-radius:7px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--loop);outline-offset:2px}
+button.primary{background:var(--ink);color:var(--panel);border-color:var(--ink)}
+button.shock{border-style:dashed}
+.lower{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:20px}
+@media (max-width:900px){.lower{grid-template-columns:minmax(0,1fr)}}
+#chart,#hist{aspect-ratio:16/8;max-width:100%}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+.fact b{font-family:var(--display);font-stretch:85%;font-weight:800;font-size:26px;display:block;line-height:1.1}
+.fact p{margin:4px 0 0;font-size:13px;color:var(--muted)}
+.fact a{color:var(--muted)}
+.note{font-size:12.5px;color:var(--muted);max-width:90ch}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Toy economy · Q4 2026 → Q4 2030 · 600 Monte Carlo futures</div>
+    <h1>Circular Money <em>Machine</em></h1>
+    <p class="lede">Chipmakers invest in AI labs. Labs spend it on cloud. Clouds spend it on chips. Watch the dollars loop, then pull the levers and see when the loop stops being paid for by real customers.</p>
+  </header>
+
+  <div class="grid">
+    <section class="panel flowpanel">
+      <h2>Money flow, per quarter <small id="flowLbl"></small></h2>
+      <div class="netbox"><canvas id="net" aria-label="Animated network of money flows between AI sector players"></canvas></div>
+      <div class="legend">
+        <span><i style="background:var(--real)"></i>Real customer revenue</span>
+        <span><i style="background:var(--cash)"></i>Spend on compute, chips, power</span>
+        <span><i style="background:var(--loop)"></i>Circular money (supplier invests in its customer)</span>
+      </div>
+    </section>
+
+    <div class="side">
+      <section class="panel">
+        <div class="status"><span class="q" id="qLbl">Q4 2026</span><span class="pill ok" id="pill">Sustainable</span></div>
+        <div class="kpis">
+          <div class="kpi"><span>Market value of AI labs</span><b id="kVal">–</b></div>
+          <div class="kpi"><span>Customer revenue run-rate</span><b id="kRev">–</b></div>
+          <div class="kpi"><span>Revenue ÷ compute spend</span><b id="kCov">–</b></div>
+          <div class="kpi"><span>Funding that is circular</span><b id="kCirc">–</b></div>
+        </div>
+        <div class="big"><b id="pPop">–</b><span>of 600 simulated futures pop before Q4 2030</span></div>
+      </section>
+
+      <section class="panel">
+        <h2>Levers</h2>
+        <div class="ctl"><label for="g">Real demand growth <output id="gO"></output></label>
+          <input type="range" id="g" min="0" max="15" step="0.5" value="6"><small>How fast paying customers grow, per quarter.</small></div>
+        <div class="ctl"><label for="circ">Circular financing <output id="circO"></output></label>
+          <input type="range" id="circ" min="0" max="40" step="1" value="15"><small>Share of chipmaker revenue recycled into AI labs as equity or vendor credit.</small></div>
+        <div class="ctl"><label for="rate">Interest rate <output id="rateO"></output></label>
+          <input type="range" id="rate" min="1" max="9" step="0.25" value="4.25"></div>
+        <div class="ctl"><label for="pg">Grid capacity growth <output id="pgO"></output></label>
+          <input type="range" id="pg" min="0" max="10" step="0.5" value="4"><small>New power for data centres, per quarter.</small></div>
+        <div class="btns">
+          <button class="primary" id="play">▶ Replay</button>
+          <button class="shock" id="sEff">Efficiency shock</button>
+          <button class="shock" id="sRate">Rate hike +1.5%</button>
+          <button class="shock" id="sGrid">Grid crunch</button>
+          <button id="reset">Reset</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="lower">
+    <section class="panel">
+      <h2>Market value vs value revenue can justify <small>shaded gap = hot air</small></h2>
+      <canvas id="chart" aria-label="Line chart of market value against revenue-justified value"></canvas>
+    </section>
+    <section class="panel">
+      <h2>When does it pop? <small>600 noisy runs</small></h2>
+      <canvas id="hist" aria-label="Histogram of the quarter in which the bubble pops"></canvas>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>Why this matters right now</h2>
+    <div class="facts">
+      <div class="fact"><b>$1.45T</b><p>wiped off 12 AI stocks in one day on 5 Nov 2026, Nvidia down 9.3%. <a href="https://fourweekmba.com/ai-daily-roundup-5-nov-2026-12-ai-stocks-lose-1-44t/" target="_blank" rel="noopener">FourWeekMBA</a></p></div>
+      <div class="fact"><b>+75%</b><p>expected 2026 jump in Big Tech capex, after more than $400B in 2025. <a href="https://iea.org/news/data-centre-electricity-use-surged-in-2025-even-with-tightening-bottlenecks-driving-a-scramble-for-solutions" target="_blank" rel="noopener">IEA</a></p></div>
+      <div class="fact"><b>+17%</b><p>data-centre electricity growth in 2025, versus 3% for global power. <a href="https://techjacksolutions.com/ai-brief/iea-data-center-electricity-use-surged-17-in-2025-as-ai-agen/" target="_blank" rel="noopener">IEA via TechJack</a></p></div>
+      <div class="fact"><b>$130B</b><p>of data-centre projects blocked early in 2026 over power and water. <a href="https://www.datacenterknowledge.com/operations-and-management/2026-predictions-ai-sparks-data-center-power-revolution" target="_blank" rel="noopener">DCK</a></p></div>
+    </div>
+  </section>
+
+  <p class="note">This is a deliberately simple system-dynamics model with illustrative starting values (≈$48B lab revenue run-rate, ≈$120B annual compute spend, ≈$1.3T combined valuation). It shows how feedback loops behave. It is not a forecast and not financial advice. Source code: <span style="font-family:var(--mono)">demo/index.html</span>.</p>
+</div>
+
+<script>
+(()=>{
+const Q=16, START_Y=2026, START_Q=4;
+const qLabel=t=>{const n=START_Q-1+t;return `Q${n%4+1} ${START_Y+Math.floor(n/4)}`};
+const $=id=>document.getElementById(id);
+const P={g:.06,circ:.15,rate:.0425,pg:.04};
+let shocks=[];
+const fmt$=b=>b>=1000?`$${(b/1000).toFixed(2)}T`:`$${b.toFixed(0)}B`;
+
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function gauss(r){let u=0,v=0;while(!u)u=r();v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+const sig=x=>1/(1+Math.exp(-x)), clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+
+/* System-dynamics core. Units: $B per quarter. */
+function simulate(p,r){
+  let R=12,S=30,own=40,cash=60,debt=20,cap=33,s=.75,rate=p.rate,popped=-1;
+  const Rh=[4,3,2,1].map(k=>R/Math.pow(1.1,k)).concat(R),Nh=[4,3,2,1].map(k=>.55*(S+own)/Math.pow(1.09,k)).concat(.55*(S+own)),out=[];
+  let inten=1;
+  const snap=(t,f)=>{const mult=5+30*s,val=4*R*mult;out.push({t,R,S,val,fair:4*R*12,s,popped,
+     cov:R/S,circShare:f?f.circ/Math.max(1e-6,f.circ+f.eq):0,f})};
+  snap(0,{cust:R,lab2cloud:S,cloud2chip:.55*(S+own),cloud2power:.12*(S+own),eq:.012*4*R*(5+30*s)*s,circ:p.circ*Nh[4]});
+  for(let t=1;t<=Q;t++){
+    const g=p.g+(r?gauss(r)*.025:0);
+    if(r) rate=Math.max(.005,rate+gauss(r)*.002);
+    for(const k of shocks) if(k.q===t){
+      if(k.type==='eff'){inten*=.6;S*=.8;R*=1.05;s*=.85}
+      if(k.type==='rate'){rate+=.015}
+      if(k.type==='grid'){cap*=.8}
+    }
+    inten*=1-.15/4;                      // power per dollar of compute falls ~15%/yr
+    cap*=1+p.pg;
+    const util=Math.min(1,cap/(S*inten));
+    R*=1+g*util-(1-util)*.04;
+    if(popped>=0) R*=.99;
+    Rh.push(R);
+    const chips=.55*(S+own), power=.12*(S+own); Nh.push(chips);
+    const gr4=R/Rh[Math.max(0,Rh.length-5)]-1, ng4=chips/Nh[Math.max(0,Nh.length-5)]-1;
+    const circNow=p.circ*chips,circSh=circNow/(circNow+.012*4*R*(5+30*s)*s+1e-6);
+    const target=sig(2*(2.2*gr4+1.5*(R/S)+1.2*ng4-10*rate-.8-1.6*circSh*circSh));
+    s=popped>=0?Math.min(target,.12+.03*(t-popped)):.6*s+.4*target;
+    const mult=5+30*s,val=4*R*mult;
+    const eq=s>.4?.012*val*s:0;
+    const circ=popped>=0?0:p.circ*chips;
+    cash+=R-.3*R-S-debt*rate/4+eq+circ;
+    if(cash<0){debt-=cash;cash=0}
+    if(popped<0&&((debt>(1.2-p.circ)*4*R&&s<.55)||s<.22)){popped=t;s=.1;S*=.55-p.circ*.6;own*=.7-p.circ*.5}
+    S*=popped>=0?1+.4*g:1+.01+.08*s;
+    own*=1+.03+(popped>=0?0:.05*s);
+    snap(t,{cust:R,lab2cloud:S,cloud2chip:chips,cloud2power:power,eq,circ});
+  }
+  return out;
+}
+
+let run=[],mc={pop:0,bins:[]};
+function recompute(){
+  run=simulate(P,null);
+  const bins=new Array(Q+1).fill(0);let pop=0;
+  for(let i=0;i<600;i++){const o=simulate(P,rng(1234+i));const p=o[Q].popped;if(p>0){pop++;bins[p-1]++}else bins[Q]++}
+  mc={pop,bins};
+  $('pPop').textContent=Math.round(pop/6)+'%';
+}
+
+/* ---------- drawing helpers ---------- */
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function fit(c){const d=devicePixelRatio||1,w=c.clientWidth,h=c.clientHeight;if(c.width!==w*d||c.height!==h*d){c.width=w*d;c.height=h*d}const x=c.getContext('2d');x.setTransform(d,0,0,d,0,0);return[x,w,h]}
+
+/* Network */
+const nodes={
+  inv:{l:'Investors',sub:'VC + debt',x:.12,y:.2},
+  cust:{l:'Customers',sub:'paying users',x:.12,y:.8},
+  lab:{l:'AI labs',sub:'model makers',x:.4,y:.5},
+  cloud:{l:'Clouds',sub:'hyperscalers',x:.68,y:.22},
+  chip:{l:'Chipmakers',sub:'GPUs, HBM',x:.88,y:.6},
+  power:{l:'Power grid',sub:'utilities',x:.6,y:.86},
+};
+const edges=[
+  {a:'cust',b:'lab',k:'cust',c:'--real',bend:0},
+  {a:'inv',b:'lab',k:'eq',c:'--cash',bend:0},
+  {a:'lab',b:'cloud',k:'lab2cloud',c:'--cash',bend:.12},
+  {a:'cloud',b:'chip',k:'cloud2chip',c:'--cash',bend:.12},
+  {a:'cloud',b:'power',k:'cloud2power',c:'--cash',bend:-.1},
+  {a:'chip',b:'lab',k:'circ',c:'--loop',bend:.22},
+];
+edges.forEach(e=>e.parts=[]);
+function ctrl(e,w,h){const A=nodes[e.a],B=nodes[e.b];const ax=A.x*w,ay=A.y*h,bx=B.x*w,by=B.y*h;const mx=(ax+bx)/2,my=(ay+by)/2;const dx=bx-ax,dy=by-ay;return[ax,ay,mx-dy*e.bend,my+dx*e.bend,bx,by]}
+const qpt=(p,t)=>{const[a,b,c,d,e,f]=p,u=1-t;return[u*u*a+2*u*t*c+t*t*e,u*u*b+2*u*t*d+t*t*f]};
+
+let cur=0,playing=true,last=performance.now();
+function flowsAt(q){q=clamp(q,0,Q);const i=Math.floor(q),j=Math.min(Q,i+1),f=q-i,A=run[i].f,B=run[j].f,o={};for(const k in A)o[k]=A[k]*(1-f)+B[k]*f;return o}
+
+function drawNet(dt){
+  const[x,w,h]=fit($('net'));x.clearRect(0,0,w,h);
+  const F=flowsAt(cur),scale=Math.min(w,h)/700;
+  for(const e of edges){
+    const p=ctrl(e,w,h),v=F[e.k]||0,col=css(e.c);
+    x.strokeStyle=col;x.globalAlpha=.22;x.lineWidth=Math.max(1,Math.sqrt(v)*1.6*scale);
+    x.beginPath();x.moveTo(p[0],p[1]);x.quadraticCurveTo(p[2],p[3],p[4],p[5]);x.stroke();x.globalAlpha=1;
+    e.acc=(e.acc||0)+v*dt*.06;
+    while(e.acc>1){e.acc--;e.parts.push(0)}
+    x.fillStyle=col;
+    e.parts=e.parts.map(t=>t+dt*.45).filter(t=>t<1);
+    for(const t of e.parts){const[px,py]=qpt(p,t);x.beginPath();x.arc(px,py,2.6*Math.max(.7,scale),0,7);x.fill()}
+    const[lx,ly]=qpt(p,.5);
+    x.font=`500 ${Math.round(11.5*Math.max(.85,scale))}px IBM Plex Mono, monospace`;x.textAlign='center';
+    x.fillStyle=css('--panel');const txt=fmt$(v);const tw=x.measureText(txt).width+8;x.fillRect(lx-tw/2,ly-9,tw,17);
+    x.fillStyle=col;x.fillText(txt,lx,ly+4);
+  }
+  const popped=run[Math.round(cur)].popped>=0&&run[Math.round(cur)].popped<=cur;
+  for(const k in nodes){const n=nodes[k],nx=n.x*w,ny=n.y*h,r=40*Math.max(.7,scale);
+    x.fillStyle=css('--panel');x.strokeStyle=(k==='lab'&&popped)?css('--loop'):css('--ink');x.lineWidth=k==='lab'?2.5:1.5;
+    x.beginPath();x.arc(nx,ny,r,0,7);x.fill();x.stroke();
+    x.fillStyle=css('--ink');x.textAlign='center';x.font=`700 ${Math.round(12*Math.max(.8,scale))}px Archivo, Arial Narrow, sans-serif`;
+    x.fillText(n.l,nx,ny+2);x.fillStyle=css('--muted');x.font=`${Math.round(10.5*Math.max(.85,scale))}px IBM Plex Sans, sans-serif`;x.fillText(n.sub,nx,ny+r+14);
+  }
+}
+
+function drawChart(){
+  const[x,w,h]=fit($('chart'));x.clearRect(0,0,w,h);
+  const L=52,Rr=30,T=12,B=26,pw=w-L-Rr,ph=h-T-B;
+  const max=Math.max(...run.map(d=>Math.max(d.val,d.fair)))*1.08;
+  const X=t=>L+pw*t/Q,Y=v=>T+ph*(1-v/max);
+  x.font='11px IBM Plex Mono, monospace';x.fillStyle=css('--muted');x.strokeStyle=css('--line');x.lineWidth=1;
+  const step=max>4000?1000:max>2000?500:250;
+  for(let v=0;v<=max;v+=step){x.beginPath();x.moveTo(L,Y(v));x.lineTo(w-Rr,Y(v));x.stroke();x.textAlign='right';x.fillText(fmt$(v),L-6,Y(v)+4)}
+  x.textAlign='center';for(let t=0;t<=Q;t+=4)x.fillText(qLabel(t),X(t),h-8);
+  const line=(k,col,upto,alpha,wid)=>{x.globalAlpha=alpha;x.strokeStyle=col;x.lineWidth=wid;x.beginPath();run.forEach((d,i)=>{if(i>upto+1e-9)return;i?x.lineTo(X(i),Y(d[k])):x.moveTo(X(i),Y(d[k]))});
+    if(upto%1){const i=Math.floor(upto),f=upto-i;x.lineTo(X(upto),Y(run[i][k]*(1-f)+run[i+1][k]*f))}x.stroke();x.globalAlpha=1};
+  // hot-air fill up to cur
+  x.fillStyle=css('--loop');x.globalAlpha=.13;x.beginPath();
+  const n=Math.floor(cur);for(let i=0;i<=n;i++)i?x.lineTo(X(i),Y(run[i].val)):x.moveTo(X(i),Y(run[i].val));
+  for(let i=n;i>=0;i--)x.lineTo(X(i),Y(run[i].fair));x.closePath();x.fill();x.globalAlpha=1;
+  line('val',css('--loop'),Q,.25,1.5);line('fair',css('--real'),Q,.25,1.5);
+  line('val',css('--loop'),cur,1,2.5);line('fair',css('--real'),cur,1,2.5);
+  const pq=run[Q].popped;
+  if(pq>0){x.strokeStyle=css('--ink');x.setLineDash([4,4]);x.beginPath();x.moveTo(X(pq),T);x.lineTo(X(pq),T+ph);x.stroke();x.setLineDash([]);
+    x.fillStyle=css('--ink');x.textAlign=X(pq)>w-90?'right':'left';x.font='600 12px IBM Plex Sans, sans-serif';x.fillText('Pop: '+qLabel(pq),X(pq)+(x.textAlign==='left'?6:-6),T+12)}
+  x.textAlign='left';x.font='600 12px IBM Plex Sans, sans-serif';
+  x.fillStyle=css('--loop');x.fillText('Market value',L+8,T+14);x.fillStyle=css('--real');x.fillText('Revenue × 12 (mature software)',L+8,T+30);
+}
+
+function drawHist(){
+  const[x,w,h]=fit($('hist'));x.clearRect(0,0,w,h);
+  const L=8,Rr=8,T=22,B=26,pw=w-L-Rr,ph=h-T-B,n=Q+1,bw=pw/n,max=Math.max(1,...mc.bins);
+  mc.bins.forEach((v,i)=>{const bh=ph*v/max;x.fillStyle=i===Q?css('--real'):css('--loop');x.globalAlpha=i===Q?1:.85;
+    x.fillRect(L+i*bw+2,T+ph-bh,bw-4,bh);x.globalAlpha=1;
+    if(v){x.fillStyle=css('--muted');x.font='10px IBM Plex Mono, monospace';x.textAlign='center';x.fillText(v,L+i*bw+bw/2,T+ph-bh-4)}});
+  x.fillStyle=css('--muted');x.font='11px IBM Plex Mono, monospace';x.textAlign='center';
+  [1,5,9,13].forEach(t=>x.fillText(qLabel(t).replace(' 20',' ’'),L+(t-1)*bw+bw/2,h-8));
+  x.fillStyle=css('--real');x.fillText('No pop',L+Q*bw+bw/2-8,h-8);
+  x.textAlign='left';x.fillStyle=css('--ink');x.font='600 12px IBM Plex Sans, sans-serif';x.fillText('Runs that pop, by quarter',L,13);
+}
+
+function updateReadout(){
+  const d=run[Math.round(cur)];$('qLbl').textContent=qLabel(Math.round(cur));
+  $('kVal').textContent=fmt$(d.val);$('kRev').textContent=fmt$(4*d.R)+'/yr';
+  $('kCov').textContent=d.cov.toFixed(2)+'×';$('kCirc').textContent=Math.round(100*d.circShare)+'%';
+  const pill=$('pill'),popped=d.popped>=0;
+  const hot=d.val/d.fair;
+  pill.className='pill '+(popped?'pop':hot>2.2||d.cov<.3?'hot':'ok');
+  pill.textContent=popped?'Popped':hot>2.2||d.cov<.3?'Inflating':'Sustainable';
+  $('flowLbl').textContent=qLabel(Math.round(cur));
+}
+
+function frame(now){
+  const dt=clamp((now-last)/1000,0,.05);last=now;
+  if(playing){cur+=dt/0.7;if(cur>=Q){cur=Q;playing=false}}
+  drawNet(dt);drawChart();updateReadout();
+  requestAnimationFrame(frame);
+}
+
+/* ---------- controls ---------- */
+const bind=(id,key,div,fmt)=>{const el=$(id),o=$(id+'O');const u=()=>{P[key]=el.value/div;o.textContent=fmt(el.value)};el.addEventListener('input',()=>{u();recompute();drawHist()});u()};
+bind('g','g',100,v=>v+'%/qtr');bind('circ','circ',100,v=>v+'%');bind('rate','rate',100,v=>(+v).toFixed(2)+'%');bind('pg','pg',100,v=>v+'%/qtr');
+const shock=type=>{const q=Math.max(1,Math.min(Q,Math.ceil(cur)||1));shocks.push({q,type});recompute();drawHist()};
+$('sEff').onclick=()=>shock('eff');$('sRate').onclick=()=>shock('rate');$('sGrid').onclick=()=>shock('grid');
+$('play').onclick=()=>{cur=0;playing=true;edges.forEach(e=>e.parts=[])};
+$('reset').onclick=()=>{shocks=[];[['g',6],['circ',15],['rate',4.25],['pg',4]].forEach(([id,v])=>{$(id).value=v;$(id).dispatchEvent(new Event('input'))});cur=0;playing=true};
+if(matchMedia('(prefers-reduced-motion: reduce)').matches){cur=Q;playing=false}
+addEventListener('resize',drawHist);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',drawHist);
+new MutationObserver(drawHist).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+
+recompute();drawHist();requestAnimationFrame(frame);
+})();
+</script>
