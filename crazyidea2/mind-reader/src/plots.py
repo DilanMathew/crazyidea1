@@ -32,26 +32,28 @@ for a, key, base, title in [(ax[0], "detect_sweep", "detect_baselines_cv", "Is t
 ax[0].set_ylabel("AUROC, 5-fold CV")
 save(fig, "fig1_layer_sweep.png")
 
-# 2. LOFO detection: probe vs tfidf vs keyword
-lofo = P["detect_lofo"]
-fig, ax = plt.subplots(figsize=(11, 4.2)); w = .26; x = np.arange(len(FAMS))
-for k, (name, col, lab) in enumerate([("probe_mean", S["s1"], "activation probe"), ("tfidf", S["s2"], "TF-IDF on text"), ("keyword", S["muted"], "keyword rule")]):
-    v = [lofo[f][name]["auroc"] for f in FAMS]
-    ax.bar(x + (k - 1) * w, v, w * .92, color=col, label=lab)
-ax.set_xticks(x, FAMS); ax.set_ylim(0.4, 1.02); ax.set_ylabel("AUROC on unseen family")
-ax.set_title("Held-out attack styles: train on 7 framings, test on the 8th"); ax.legend(ncol=3, loc="lower left", fontsize=9)
-save(fig, "fig2_lofo.png")
+# 2. compliance on unseen attack styles (LOFO): probe vs TF-IDF
+cl = P["comply_lofo"]; fams = list(cl)
+fig, ax = plt.subplots(figsize=(11, 4.2)); w = .38; x = np.arange(len(fams))
+for k, (name, col, lab) in enumerate([("probe", S["s1"], f"activation probe (layer {P['comply_lofo_layer']}, last prompt token)"), ("tfidf", S["s2"], "TF-IDF on the email text")]):
+    v = [cl[f][name] for f in fams]
+    ax.bar(x + (k - .5) * w, v, w * .92, color=col, label=lab)
+    for i, vv in enumerate(v): ax.text(i + (k - .5) * w, vv + .008, f"{vv:.2f}", ha="center", fontsize=8.5, color=S["ink2"])
+ax.set_xticks(x, [f"{f}\n({cl[f]['n_pos']}/{cl[f]['n']} obeyed)" for f in fams], fontsize=9); ax.set_ylim(0.5, 1.04)
+ax.set_ylabel("AUROC: will it obey?"); ax.set_title("Predicting obedience on attack styles never seen in training")
+ax.legend(loc="lower left", fontsize=9)
+save(fig, "fig2_comply_unseen.png")
 
-# 3. hard negatives FPR
-fig, ax = plt.subplots(figsize=(7.5, 3.8))
-cats = [("fpr_aware", "security-awareness emails\n(quote 'ignore instructions')"), ("fpr_benign", "benign imperatives\n('forward to legal@…')"), ("fpr_clean", "clean emails")]
-for k, (name, col, lab) in enumerate([("probe_mean", S["s1"], "activation probe"), ("tfidf", S["s2"], "TF-IDF on text")]):
-    v = [np.mean([lofo[f][name][c] for f in FAMS]) for c, _ in cats]
-    ax.bar(np.arange(3) + (k - .5) * .38, v, .35, color=col, label=lab)
-    for i, vv in enumerate(v): ax.text(i + (k - .5) * .38, vv + .01, f"{vv:.0%}", ha="center", fontsize=9, color=S["ink2"])
-ax.set_xticks(np.arange(3), [c[1] for c in cats], fontsize=9); ax.set_ylabel("false-positive rate")
-ax.set_title("False alarms at 95% recall (mean over held-out folds)"); ax.legend()
-save(fig, "fig3_false_alarms.png")
+# 3. threshold transfer for detection on unseen families
+lofo = P["detect_lofo"]
+fig, ax = plt.subplots(figsize=(11, 3.8)); x = np.arange(len(FAMS))
+for k, (name, col, lab) in enumerate([("probe_last", S["s1"], "activation probe"), ("tfidf", S["s2"], "TF-IDF on text")]):
+    v = [lofo[f][name]["recall_at_thr"] for f in FAMS]
+    ax.bar(x + (k - .5) * .38, v, .35, color=col, label=f"{lab} (mean {np.mean(v):.0%})")
+ax.set_xticks(x, FAMS); ax.set_ylim(0, 1.05); ax.set_ylabel("share of new attacks caught")
+ax.set_title("Detection threshold set on 7 known styles, applied to an unseen 8th (0 false alarms for both)")
+ax.legend(loc="upper left", fontsize=9)
+save(fig, "fig3_threshold_transfer.png")
 
 # 4. steering
 sp = os.path.join(R, "steer_1.5B.json")
