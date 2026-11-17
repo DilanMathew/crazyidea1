@@ -62,7 +62,8 @@ if os.path.exists(sp) and os.path.exists(lp):
     st = json.load(open(sp)); lg = json.load(open(lp)); rd = json.load(open(rp)) if os.path.exists(rp) else {}
     rows = [("none", "no defense"), ("spot", "spotlight prompt"), ("add:16:1", "steer @16, a=1"), ("add:23:1", "steer @23, a=1"),
             ("add:23:2", "steer @23, a=2"), ("ablate:23", "ablate @23 dir"), ("ablate:16", "ablate @16 dir")]
-    rows += [("rand:" + k, f"RANDOM dir, {k.replace('add:', 'steer @').replace(':1', ', a=1').replace(':2', ', a=2').replace('ablate:', 'ablate @')}") for k in rd]
+    RL = {"add:23:1": "steer @23, a=1", "add:23:2": "steer @23, a=2", "ablate:23": "ablate @23"}
+    rows += [("rand:" + k, f"control: RANDOM dir, {RL.get(k, k)}") for k in rd if k != "none"]
     def get(k, metric):
         if k.startswith("rand:"): src = rd[k[5:]]
         else: src = st[k]

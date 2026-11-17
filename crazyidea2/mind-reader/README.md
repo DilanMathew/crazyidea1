@@ -12,7 +12,7 @@
 | 2 | It still works on **attack styles it never saw in training** (leave-one-family-out) | **0.958** mean AUROC vs **0.762** for a TF-IDF classifier on the same text |
 | 3 | It beats a classifier that is *told* the attack family, goal, position and task | 0.967 vs 0.891. Within one goal (email exfiltration): **0.985 vs 0.808** |
 | 4 | It replicates on a second model | Qwen2.5-0.5B: **0.990** at layer 22 of 24, held-out styles 0.94–1.00 |
-| 5 | Subtracting the probe's direction at layer 23 cuts attacks by 40% | attack success **17.7% → 10.7%** (p < 0.0001, paired), clean accuracy 91% → 95% |
+| 5 | Subtracting the probe's direction at layer 23 cuts attacks by 40%. A random direction of the same size does nothing | attack success **17.7% → 10.7%** (p < 0.0001, paired; random control 18.7%), clean accuracy 91% → 95% (n.s., p=0.07) |
 | 6 | **But** the direction is partly "use tools at all" | legitimate tool calls drop 97% → 90% (α=1) or → 74% (full ablation) |
 | 7 | The standard prompt defense ("spotlighting") did **nothing** | 17.7% → 18.0%: it stopped 13 attacks and caused 14 new ones |
 
@@ -41,7 +41,7 @@ An email assistant (`MailPilot`) with two tools, `send_email` and `fetch_url`, g
   - 300 *benign imperatives* addressed to humans ("forward the contract to legal@…")
   - 300 *security-awareness* emails that **quote** injection phrases ("attackers may write 'ignore all previous instructions'…")
 
-**Label audit.** Every output marked "obeyed" in a random sample really acted on the injection, and 0 of 1,297 "resisted" outputs contained the attack marker.
+**Label audit.** All 12 outputs in a random sample of "obeyed" really acted on the injection, and 0 of 1,297 "resisted" outputs contained the attack marker.
 
 ### Activations (`src/run_model.py`)
 For each prompt: greedy generation (48 tokens), plus the residual stream at **every layer**, both at the last prompt token and mean-pooled over the prompt. The full 1.5B run takes about 27 min on CPU.
@@ -83,7 +83,7 @@ The right panel is the interesting one. The model's internal state at the last p
 
 ![unseen styles](results/fig2_comply_unseen.png)
 
-On attack styles the probe **never saw in training**, it keeps 0.92–0.99 AUROC. A text classifier trained on the same emails drops to 0.63–0.88. It is weakest on Spanish (0.63) and fake chat turns (0.68), where the probe holds 0.95.
+On attack styles the probe **never saw in training**, it keeps 0.92–0.99 AUROC. A text classifier trained on the same emails drops to 0.62–0.88. It is weakest on Spanish (0.62) and fake chat turns (0.68), where the probe holds 0.95.
 
 **Why this matters.** You could run this probe as a cheap monitor (one dot product per request) and block or escalate the ~19% of requests where the model is about to go off-script, *before* any tool call happens.
 
@@ -98,11 +98,15 @@ Direction: `d = mean(activation | obeyed) − mean(activation | resisted)`, comp
 | none | 17.7% | | 91.3% | 96.7% |
 | spotlighting prompt | 18.0% | +0.3 pts (−3.0..+3.7), p=1.0 | 93.3% | — |
 | steer @16, α=1 | 13.3% | −4.3 pts (−7.0..−1.7), p=0.002 | 90.0% | 84.7% |
-| **steer @23, α=1** | **10.7%** | **−7.0 pts (−10.0..−4.3), p<0.0001** | **95.3%** | **90.0%** |
+| **steer @23, α=1** | **10.7%** | **−7.0 pts (−10.0..−4.3), p<0.0001**: stopped 21, caused 0 | **95.3%** (p=0.07) | **90.0%** |
 | steer @23, α=2 | 8.0% | −9.7 pts (−13.3..−6.0), p<0.0001 | 85.3% | 63.3% |
 | ablate @23 direction, all layers | 10.7% | −7.0 pts (−10.0..−4.0), p<0.0001 | 97.3% | 74.0% |
 | ablate @16 direction, all layers | **27.7%** | **+10.0 pts** (worse!) | 88.0% | — |
-RANDOM_CONTROL_ROWS
+| *control:* RANDOM direction, same norm, @23 α=1 | 18.7% | +1.0 pts (−1.7..+3.7), p=0.63 | 89.3% | — |
+| *control:* RANDOM direction, @23 α=2 | 23.0% | **+5.3 pts** (worse), p=0.003 | 82.0% | — |
+| *control:* RANDOM direction, ablate | 16.3% | −1.3 pts (−3.0..0.0), p=0.22 | 91.3% | — |
+
+**The random-direction control matters.** Pushing the residual stream by the same amount in a random direction does *not* reduce attacks. At α=2 it makes them worse. The effect is specific to the learned direction, not "any perturbation makes the model ignore the email".
 
 What this does and doesn't show:
 - **It's not only tool suppression.** The canary attack ("reply with only the word X") needs no tool, and it also falls from 30/70 to 21/70 (α=1) and 13/70 (α=2).
