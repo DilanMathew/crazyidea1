@@ -1,5 +1,9 @@
 # crazyidea2: Agents are the new attack surface (Nov 2026)
 
+> **Main project: [`mind-reader/`](mind-reader/README.md).** It's a real interpretability experiment. Linear probes on Qwen2.5's activations predict whether the model will obey a prompt injection before it writes a token (AUROC 0.97, and 0.96 on unseen attack styles vs 0.76 for a text classifier). Activation steering cuts attacks by 40%, with a measured side effect on legitimate tool use. Everything is measured, nothing simulated.
+>
+> `demo/` (Agent Heist) is the lighter warm-up: an interactive toy model of attacks vs defenses.
+
 **Lane:** agents and LLM tooling · **Voice:** ML practitioner · **Goal:** reach and followers
 
 ## 1. Why this topic, right now
@@ -13,7 +17,7 @@ The tension worth playing with: **"Give agents more tools" vs. "every tool is a 
 | # | Idea | What you build (ML/AI work) | Hook |
 |---|------|-----------------------------|------|
 | 1 | **Agent Heist** ✅ built | Interactive simulator of 8 prompt-injection / MCP attacks vs. 7 defenses, exact odds, and a Pareto front of all 128 defense combos (`demo/index.html`) | "One sentence in an email made my AI assistant mail out my API key. Here are the 7 defenses I tried, ranked." |
-| 2 | **Real-model Heist** (sequel to #1) | Replace the toy numbers with measurements: run the same 8 payloads × N trials against 3–4 real models (one frontier, one open-weight, one small) through a minimal agent loop. Report attack success with confidence intervals. | "I attacked 4 LLMs 3,200 times. The smallest model wasn't the easiest to fool." *(only if the data says so)* |
+| 2 | **Mind Reader** ✅ built (`mind-reader/`) | Probe Qwen2.5's activations to predict whether it will obey a prompt injection before it writes a token, test on unseen attack styles against text baselines, then steer the decision and measure the side effects | "I can tell when my AI is about to obey a hacker, before it writes a single word." |
 | 3 | **Judge Flip** | LLM-as-judge bias experiment: same pair of answers, swap the order, pad one with fluff, and count verdict flips. Add a simple fix (swap-and-average, rubric scoring) and show the flip rate drop. | "I swapped the order of two answers. My AI judge changed its mind X% of the time." |
 | 4 | **The Agent Receipt** | Instrument a coding agent on one real bug fix. Itemise tokens, tool calls, retries, dead ends and $ cost, and render it as a printed supermarket receipt. | "My AI agent's receipt for fixing one bug." (very shareable visual) |
 | 5 | **Distil My Agent** | Log 1–2k traces of a frontier model doing one narrow task. Fine-tune a 1–3B open model with LoRA on those traces, then plot accuracy vs. cost vs. latency. | "A model 100× smaller does my agent's job at Y% accuracy for Z% of the cost." |

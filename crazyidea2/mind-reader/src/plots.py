@@ -3,6 +3,7 @@ import json, os, sys
 import numpy as np
 import matplotlib; matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 
 R = sys.argv[1]
 S = {"surface": "#fcfcfb", "ink": "#0b0b0b", "ink2": "#52514e", "grid": "#e4e2dc",
@@ -55,16 +56,30 @@ ax.set_title("Detection threshold set on 7 known styles, applied to an unseen 8t
 ax.legend(loc="upper left", fontsize=9)
 save(fig, "fig3_threshold_transfer.png")
 
-# 4. steering
-sp = os.path.join(R, "steer_1.5B.json")
-if os.path.exists(sp):
-    st = json.load(open(sp))
-    fig, ax = plt.subplots(figsize=(7.5, 4.6))
-    for k, v in st.items():
-        col = S["muted"] if k == "none" else S["s2"] if k.startswith("spot") and k == "spot" else S["s3"] if k.startswith("spot+") else S["s1"]
-        ax.scatter(v["task_clean"], v["asr"], s=60, color=col, zorder=3, edgecolor=S["surface"], linewidth=1.5)
-        ax.annotate(k, (v["task_clean"], v["asr"]), textcoords="offset points", xytext=(6, 4), fontsize=8.5, color=S["ink2"])
-    ax.set_xlabel("task accuracy on clean emails  →  better"); ax.set_ylabel("attack success rate  ↓  better")
-    ax.set_title("Steering the model's internals vs a prompt defense")
+# 4. steering: three metrics per config (small multiples, same % scale)
+sp = os.path.join(R, "steer_1.5B.json"); lp = os.path.join(R, "legit_1.5B.json"); rp = os.path.join(R, "steer_random_1.5B.json")
+if os.path.exists(sp) and os.path.exists(lp):
+    st = json.load(open(sp)); lg = json.load(open(lp)); rd = json.load(open(rp)) if os.path.exists(rp) else {}
+    rows = [("none", "no defense"), ("spot", "spotlight prompt"), ("add:16:1", "steer @16, a=1"), ("add:23:1", "steer @23, a=1"),
+            ("add:23:2", "steer @23, a=2"), ("ablate:23", "ablate @23 dir"), ("ablate:16", "ablate @16 dir")]
+    rows += [("rand:" + k, f"RANDOM dir, {k.replace('add:', 'steer @').replace(':1', ', a=1').replace(':2', ', a=2').replace('ablate:', 'ablate @')}") for k in rd]
+    def get(k, metric):
+        if k.startswith("rand:"): src = rd[k[5:]]
+        else: src = st[k]
+        if metric == "legit": return lg.get(k, {}).get("legit_tool_rate", np.nan)
+        return src[metric]
+    fig, ax = plt.subplots(1, 3, figsize=(12, 0.42 * len(rows) + 1.6), sharey=True)
+    y = np.arange(len(rows))[::-1]
+    for a, (metric, title, col) in zip(ax, [("asr", "attack success  (lower = better)", S["s2"]), ("task_clean", "task accuracy, clean emails", S["s1"]), ("legit", "legit tool calls still work", S["s3"])]):
+        v = [get(k, metric) for k, _ in rows]
+        a.barh(y, v, .62, color=[S["muted"] if k == "none" else col for k, _ in rows])
+        for yy, vv in zip(y, v):
+            if not np.isnan(vv): a.text(vv + .01, yy, f"{vv:.0%}", va="center", fontsize=8.5, color=S["ink2"])
+            else: a.text(.01, yy, "not run", va="center", fontsize=8.5, color=S["muted"])
+        base = get("none", metric); a.axvline(base, color=S["ink2"], lw=1, ls=":")
+        a.set_title(title, fontsize=11); a.set_xlim(0, 1.12 if metric != "asr" else max(v) * 1.35); a.grid(axis="y", visible=False)
+        a.xaxis.set_major_formatter(matplotlib.ticker.PercentFormatter(1.0, decimals=0))
+    ax[0].set_yticks(y, [lab for _, lab in rows])
+    fig.suptitle("Steering Qwen2.5-1.5B's residual stream: 300 held-out attacks, 150 clean emails, 150 legit tool requests", x=0.01, ha="left", fontsize=12, fontweight="bold")
     save(fig, "fig4_steering.png")
 print("ok")
